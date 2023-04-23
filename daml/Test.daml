@@ -1,0 +1,138 @@
+module Test where
+
+import Main
+import Daml.Script
+import DA.Foldable
+
+testFunction : Script ()
+testFunction = do 
+    alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
+    bob <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")
+    charlie <- allocatePartyWithHint "Charlie" (PartyIdHint "Charlie")
+    staff <- allocatePartyWithHint "Staff" (PartyIdHint "Staff")
+
+    newBidId <- submit alice do
+        createCmd Bid with
+            buyer = alice
+            seller = bob
+            staff = staff
+            price = 50.0
+            reason = ""
+            itemId = 1
+   ---------------------------------------------
+    newBidId2 <- submit charlie do
+        createCmd Bid with
+            buyer = charlie
+            seller = bob
+            staff = staff
+            price = 88.0
+            reason = ""
+            itemId = 1
+    ---------------------------------------------
+    newBidId3 <- submit alice do
+        createCmd Bid with
+            buyer = alice
+            seller = bob
+            staff = staff
+            price = 180.0
+            reason = ""
+            itemId = 3
+
+    -- ensure buyer /= seller
+    submitMustFail alice do
+        createCmd Bid with
+            buyer = alice
+            seller = alice
+            staff = charlie
+            price = 50.0
+            reason = ""
+            itemId = 1
+
+    -- test for: A signatory with the authority to create and archive contracts
+    submitMustFail alice do
+        createCmd Bid with
+            buyer = charlie
+            seller = bob
+            staff = charlie
+            price = 50.0
+            reason = ""
+            itemId = 1
+
+
+    -- Reject -------------------------------------------
+    -- test for: A controller with the authority to exercise choices on contracts
+    submitMustFail alice do 
+        exerciseCmd newBidId Reject with
+            newReason = "Price is too low"
+    submitMustFail charlie do 
+        exerciseCmd newBidId Reject with
+            newReason = "Price is too low"
+
+
+
+    bidRejectId <- submit bob do 
+        exerciseCmd newBidId Reject with
+            newReason = "Price is too low"
+
+
+    -- Offer -------------------------------------------
+    -- newPrice should > price
+    submitMustFail alice do 
+        exerciseCmd bidRejectId Offer with
+            newPrice = 40.00
+    -- newPrice should > price
+    submitMustFail alice do 
+        exerciseCmd bidRejectId Offer with
+            newPrice = 50.00
+    -- test for: A controller with the authority to exercise choices on contracts
+    submitMustFail bob do 
+        exerciseCmd bidRejectId Offer with
+            newPrice = 100.00
+    -- test for: A controller with the authority to exercise choices on contracts
+    submitMustFail charlie do 
+        exerciseCmd bidRejectId Offer with
+            newPrice = 100.00
+
+
+
+    offerId <- submit alice do 
+        exerciseCmd bidRejectId Offer with
+            newPrice = 100.00
+
+
+
+    --Query for all bid visible to the Party.
+    bids <- query @Bid alice
+    debug $ "bids alice:"
+    mapA_ (\x -> debug x) bids
+    
+    bids <- query @Bid bob
+    debug $ "bids bob:"
+    mapA_ (\x -> debug x) bids
+
+    bids <- query @Bid charlie
+    debug $ "bids charlie:"
+    mapA_ (\x -> debug x) bids
+
+    --test for: An observer with the authority to view contracts
+    bids <- query @Bid staff
+    debug $ "bids staff:"
+    mapA_ (\x -> debug x) bids
+
+
+
+    -- Accept -------------------------------------------
+    -- test for: A controller with the authority to exercise choices on contracts
+    submitMustFail alice do 
+        exerciseCmd offerId Accept
+    -- test for: A controller with the authority to exercise choices on contracts
+    submitMustFail charlie do 
+        exerciseCmd offerId Accept
+
+    bidAcceptId <- submit bob do 
+        exerciseCmd offerId Accept
+
+
+
+    
+    debug $ "Completed"

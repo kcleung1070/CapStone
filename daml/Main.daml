@@ -1,0 +1,54 @@
+module Main where
+
+template Bid
+    with
+        buyer: Party
+        seller: Party
+        staff: Party
+        price: Decimal
+        reason: Text
+        itemId: Int
+    where
+        signatory buyer
+        observer seller, staff
+
+        ensure buyer /= seller
+
+        -- buyer can reject
+        choice Offer: ContractId Bid
+            with
+                newPrice: Decimal
+            controller buyer
+            do
+                assertMsg "newPrice" (newPrice > price)
+                create this with
+                    price = newPrice
+
+        -- seller can reject
+        choice Reject : ContractId Bid 
+            with
+                newReason : Text
+            controller seller
+            do
+                create this with 
+                    reason = newReason 
+
+        -- seller can reject
+        choice Accept : ContractId Settlement 
+            controller seller
+            do
+                create Settlement with
+                    buyer
+                    seller
+                    price
+                    itemId
+
+template Settlement
+    with 
+        buyer : Party
+        seller : Party
+        price : Decimal
+        itemId: Int
+    where
+        signatory buyer, seller
+    
