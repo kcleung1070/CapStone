@@ -57,7 +57,14 @@ testFunction = do
             price = 50.0
             reason = ""
             itemId = 1
-
+    submitMustFail staff do
+        createCmd Bid with
+            buyer = charlie
+            seller = bob
+            staff = staff
+            price = 50.0
+            reason = ""
+            itemId = 1
 
     -- Reject -------------------------------------------
     -- test for: A controller with the authority to exercise choices on contracts
